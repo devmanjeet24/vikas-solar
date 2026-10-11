@@ -22,21 +22,6 @@ export default function Hero() {
           </div>
         </motion.div>
 
-        <div className="mt-14 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl">
-          {hero.stats.map((s, i) => (
-            <motion.div
-              key={s.label}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 + i * 0.15, duration: 0.6 }}
-              whileHover={{ y: -4 }}
-              className="glass-dark rounded-2xl p-5 text-center"
-            >
-              <div className="font-heading text-3xl font-bold text-solar">{s.value}</div>
-              <div className="text-sm text-white/80 mt-1">{s.label}</div>
-            </motion.div>
-          ))}
-        </div>
       </div>
     </section>
   )
