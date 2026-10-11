@@ -1,16 +1,56 @@
 import { useState } from 'react'
-import { CheckCircle2, Send } from 'lucide-react'
+import { CheckCircle2, Send, Loader2 } from 'lucide-react'
 import Reveal from './Reveal'
 import SectionHeading from './SectionHeading'
 import { about, enquiryFields, images } from '../data/content'
 
+const SHEET_URL = import.meta.env.VITE_SHEET_URL
+
+function validate(v) {
+  const e = {}
+  if (!v.name?.trim()) e.name = 'Please enter your name'
+  if (!/^\d{6}$/.test(v.pin || '')) e.pin = 'Enter a valid 6-digit pin code'
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email || '')) e.email = 'Enter a valid email'
+  if (!(Number(v.bill) > 0)) e.bill = 'Enter your monthly bill'
+  if (!/^\d{10}$/.test(v.phone || '')) e.phone = 'Enter a 10-digit phone number'
+  if (!(Number(v.area) > 0)) e.area = 'Enter the area in sq. ft.'
+  return e
+}
+
 export default function About() {
-  const [sent, setSent] = useState(false)
-  const onSubmit = (e) => {
-    e.preventDefault() // UI only — wire to a backend later
-    setSent(true)
-    e.target.reset()
-    setTimeout(() => setSent(false), 4000)
+  const [status, setStatus] = useState('idle') // idle | loading | success | error
+  const [errors, setErrors] = useState({})
+
+  const onSubmit = async (e) => {
+    e.preventDefault()
+    const form = e.currentTarget
+    const values = Object.fromEntries(new FormData(form))
+    const found = validate(values)
+    setErrors(found)
+    if (Object.keys(found).length) return
+
+    if (!SHEET_URL) {
+      console.error('VITE_SHEET_URL is not set')
+      setStatus('error')
+      return
+    }
+
+    setStatus('loading')
+    try {
+      // text/plain keeps this a "simple" request, so no CORS preflight is needed
+      const res = await fetch(SHEET_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(values),
+      })
+      const out = await res.json()
+      if (!out.ok) throw new Error(out.error || 'Failed')
+      form.reset()
+      setStatus('success')
+    } catch (err) {
+      console.error(err)
+      setStatus('error')
+    }
   }
 
   return (
@@ -34,7 +74,7 @@ export default function About() {
         </Reveal>
 
         <Reveal delay={0.15} id="contact" className="scroll-mt-24">
-          <form onSubmit={onSubmit} className="glass rounded-3xl p-6 sm:p-9 relative">
+          <form onSubmit={onSubmit} noValidate className="glass rounded-3xl p-6 sm:p-9 relative">
             <div className="absolute -top-6 -right-6 h-24 w-24 rounded-full bg-solar/30 blur-2xl -z-10" />
             <h3 className="text-2xl font-bold text-navy">Enquire Now</h3>
             <p className="text-sm text-slate-500 mt-1 mb-6">Get a free quote within 24 hours.</p>
@@ -43,14 +83,24 @@ export default function About() {
                 <label key={f.name} className="block">
                   <span className="text-xs font-semibold text-navy/80">{f.label}</span>
                   <input
-                    name={f.name} type={f.type} placeholder={f.placeholder} required
-                    className="mt-1 w-full rounded-xl bg-white/70 border border-navy/10 px-4 py-3 text-sm outline-none transition focus:border-emerald-brand focus:ring-2 focus:ring-emerald-brand/30"
+                    name={f.name} type={f.type} placeholder={f.placeholder}
+                    inputMode={['pin', 'phone', 'bill', 'area'].includes(f.name) ? 'numeric' : undefined}
+                    aria-invalid={!!errors[f.name]}
+                    className={`mt-1 w-full rounded-xl bg-white/70 border px-4 py-3 text-sm outline-none transition focus:ring-2 ${
+                      errors[f.name] ? 'border-red-400 focus:ring-red-300/40' : 'border-navy/10 focus:border-emerald-brand focus:ring-emerald-brand/30'
+                    }`}
                   />
+                  {errors[f.name] && <span className="mt-1 block text-xs text-red-500">{errors[f.name]}</span>}
                 </label>
               ))}
             </div>
-            <button type="submit" className="btn-primary w-full mt-6"><Send size={18} /> Send Query</button>
-            {sent && <p className="mt-3 text-center text-sm font-medium text-emerald-brand">Thank you! We'll be in touch shortly.</p>}
+            {/* Honeypot: hidden from people, bots fill it */}
+            <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 opacity-0" />
+            <button type="submit" disabled={status === 'loading'} className="btn-primary w-full mt-6 disabled:opacity-70 disabled:cursor-not-allowed">
+              {status === 'loading' ? <><Loader2 size={18} className="animate-spin" /> Sending...</> : <><Send size={18} /> Send Query</>}
+            </button>
+            {status === 'success' && <p role="status" className="mt-3 text-center text-sm font-medium text-emerald-brand">Thank you! We'll be in touch shortly.</p>}
+            {status === 'error' && <p role="alert" className="mt-3 text-center text-sm font-medium text-red-500">Something went wrong. Please try again or call us.</p>}
           </form>
         </Reveal>
       </div>
